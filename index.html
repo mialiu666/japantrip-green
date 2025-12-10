@@ -307,4 +307,442 @@
 
                 <div class="input-group">
                     <select v-model="newPack.category" style="flex: 1;">
-                        <option disabled value="">選擇分類</opt
+                        <option disabled value="">選擇分類</option>
+                        <option value="證件與錢包">證件與錢包</option>
+                        <option value="衣物">衣物</option>
+                        <option value="電器">電器</option>
+                        <option value="藥品">藥品</option>
+                        <option value="盥洗用品">盥洗用品</option>
+                        <option value="其他">其他</option>
+                    </select>
+                    <input type="text" v-model="newPack.name" placeholder="物品名稱" style="flex: 2;">
+                </div>
+                <button class="btn-main" style="width: 100%; margin-top: 10px;" @click="addPackItem">加入清單</button>
+            </div>
+
+            <div class="card" v-for="(items, category) in groupedPacking" :key="category">
+                <div class="card-title" style="margin-bottom: 10px; font-size: 0.9rem;">{{ category }}</div>
+                
+                <!-- Draggable Items -->
+                <div v-for="item in items" :key="item.id" 
+                     class="pack-item" 
+                     :class="{ checked: item.checked, dragging: item.id === draggingId }"
+                     :data-id="item.id"
+                     @click="togglePack(item)"
+                     @touchstart="handleTouchStart($event, item)"
+                     @touchmove="handleTouchMove"
+                     @touchend="handleTouchEnd"
+                     @mousedown="handleTouchStart($event, item)"
+                     @mousemove="handleTouchMove"
+                     @mouseup="handleTouchEnd"
+                     @mouseleave="handleTouchEnd">
+                     
+                    <div class="pack-checkbox"><i class="fa-solid fa-check"></i></div>
+                    <span style="flex: 1;">{{ item.name }}</span>
+                    <i class="fa-solid fa-xmark" style="color: var(--text-sub); padding: 5px;" @click.stop="removePack(item.id)"></i>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. 匯率 -->
+        <section v-if="currentTab === 'currency'">
+            <div class="card" style="text-align: center;">
+                <div style="color: var(--text-sub); font-size: 0.9rem;">目前匯率 (JPY to TWD)</div>
+                <div class="rate-display">{{ currentRate.toFixed(4) }}</div>
+                <div class="rate-sub">每30分鐘更新 | 上次更新: {{ lastRateUpdate }}</div>
+
+                <div class="converter-box">
+                    <span class="currency-label" style="color: var(--highlight);">¥</span>
+                    <input type="number" v-model="calcJpy" placeholder="輸入日幣" @input="calculateTwd" style="font-size: 1.2rem;">
+                </div>
+                <div style="font-size: 1.5rem; margin-bottom: 20px;">
+                    ≈ NT$ <span style="color: var(--highlight);">{{ calcTwd }}</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">消費記錄</div>
+                <div style="margin-top: 15px;">
+                    <div class="input-group nowrap">
+                        <select v-model="expense.method" style="flex: 0 0 75px; padding: 12px 5px; text-align: center;">
+                            <option value="cash">💵</option>
+                            <option value="card">💳</option>
+                        </select>
+                        <input type="text" v-model="expense.name" placeholder="物品" style="flex: 2;">
+                        <input type="number" v-model="expense.price" placeholder="¥" style="flex: 1.2;">
+                    </div>
+                    <button class="btn-main" style="width: 100%; margin-top: 10px;" @click="saveExpense">記錄消費</button>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <div v-for="(log, idx) in expenseLogs" :key="log.id" class="history-item">
+                        <div style="flex: 1;">
+                            <div style="font-weight: bold; display: flex; align-items: center;">
+                                {{ log.name }}
+                                <span class="payment-icon">
+                                    <i v-if="log.method === 'card'" class="fa-regular fa-credit-card icon-card"></i>
+                                    <i v-else class="fa-solid fa-money-bill-wave icon-cash"></i>
+                                </span>
+                            </div>
+                            <div style="font-size: 0.8rem; color: var(--text-sub);">{{ log.date }}</div>
+                        </div>
+                        <div class="history-price">
+                            <div>¥{{ log.price }}</div>
+                            <div style="color: var(--success);">NT$ {{ Math.round(log.price * log.rate) }}</div>
+                            <div class="history-rate">匯率: {{ log.rate.toFixed(4) }}</div>
+                        </div>
+                        <div style="margin-left: 10px;">
+                            <i class="fa-solid fa-trash" style="color: var(--text-sub); font-size: 0.8rem;" @click="removeExpense(log.id)"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. 備忘錄 -->
+        <section v-if="currentTab === 'memos'">
+            <div style="padding-bottom: 20px;">
+                <div class="simple-add-btn" style="margin-bottom: 20px;" @click="openMemoModal(null)">
+                    <i class="fa-solid fa-plus"></i> 新增紙條
+                </div>
+
+                <div class="memo-grid">
+                    <div v-for="memo in memos" :key="memo.id" class="memo-item" @click="openMemoModal(memo)">
+                        <div class="memo-text">{{ memo.text }}</div>
+                        <div class="memo-date">{{ memo.date }}</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Nav -->
+    <nav>
+        <div class="nav-item" :class="{ active: currentTab === 'itinerary' }" @click="currentTab = 'itinerary'">
+            <i class="fa-solid fa-calendar-days"></i><span>行程</span>
+        </div>
+        <div class="nav-item" :class="{ active: currentTab === 'packing' }" @click="currentTab = 'packing'">
+            <i class="fa-solid fa-suitcase"></i><span>行李</span>
+        </div>
+        <div class="nav-item" :class="{ active: currentTab === 'currency' }" @click="currentTab = 'currency'">
+            <i class="fa-solid fa-sack-dollar"></i><span>匯率</span>
+        </div>
+        <div class="nav-item" :class="{ active: currentTab === 'memos' }" @click="currentTab = 'memos'">
+            <i class="fa-solid fa-note-sticky"></i><span>備忘</span>
+        </div>
+    </nav>
+
+    <!-- Modals -->
+    <div class="modal-overlay" v-if="showItineraryModal" @click.self="closeItineraryModal">
+        <div class="modal-content">
+            <div class="modal-header">{{ editingItineraryId ? '編輯行程' : '新增行程' }}</div>
+            <div class="input-group">
+                <input type="time" v-model="modalItem.time" required style="flex: 1;">
+                <select v-model="modalItem.duration" style="flex: 1;">
+                    <option value="0">無區間</option>
+                    <option v-for="dur in durationOptions" :key="dur.val" :value="dur.val">{{ dur.label }}</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <input type="text" v-model="modalItem.title" placeholder="要做什麼? (必填)">
+            </div>
+            <div class="input-group">
+                <input type="text" v-model="modalItem.location" placeholder="地點">
+            </div>
+            <div class="btn-block">
+                <button v-if="editingItineraryId" class="btn-danger" @click="removeItineraryFromModal">刪除</button>
+                <button class="btn-sec" @click="closeItineraryModal">取消</button>
+                <button class="btn-main" @click="saveItineraryFromModal">確認</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" v-if="showMemoModal" @click.self="closeMemoModal">
+        <div class="modal-content">
+            <div class="modal-header">{{ editingMemoId ? '編輯紙條' : '新紙條' }}</div>
+            <div class="input-group">
+                <textarea v-model="modalMemo.text" placeholder="寫下任何想法..."></textarea>
+            </div>
+            <div class="btn-block">
+                <button v-if="editingMemoId" class="btn-danger" @click="removeMemoFromModal">刪除</button>
+                <button class="btn-sec" @click="closeMemoModal">取消</button>
+                <button class="btn-main" @click="saveMemoFromModal">儲存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('SW registered!', reg))
+                .catch(err => console.log('SW failed', err));
+        });
+    }
+
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    createApp({
+        setup() {
+            const currentTab = ref('itinerary');
+            // Weather & Time
+            const japanTime = ref('00:00');
+            const weather = ref(null);
+            const updateTime = () => {
+                const now = new Date();
+                const jpnTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Tokyo"}));
+                const h = String(jpnTime.getHours()).padStart(2, '0');
+                const m = String(jpnTime.getMinutes()).padStart(2, '0');
+                japanTime.value = `${h}:${m}`;
+            };
+            const weatherCodeMap = {
+                0: { desc: '晴朗', icon: 'fa-sun' }, 1: { desc: '多雲', icon: 'fa-cloud-sun' },
+                2: { desc: '陰天', icon: 'fa-cloud' }, 3: { desc: '陰天', icon: 'fa-cloud' },
+                45: { desc: '霧', icon: 'fa-smog' }, 51: { desc: '毛毛雨', icon: 'fa-cloud-rain' },
+                61: { desc: '下雨', icon: 'fa-umbrella' }, 71: { desc: '下雪', icon: 'fa-snowflake' },
+                95: { desc: '雷雨', icon: 'fa-bolt' }
+            };
+            const weatherIcon = computed(() => {
+                if(!weather.value) return 'fa-solid fa-question';
+                return 'fa-solid ' + (weatherCodeMap[weather.value.code]?.icon || 'fa-cloud');
+            });
+            const fetchWeather = async () => {
+                try {
+                    const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=34.6937&longitude=135.5023&current_weather=true&timezone=Asia%2FTokyo');
+                    const data = await res.json();
+                    if(data.current_weather) {
+                        const code = data.current_weather.weathercode;
+                        let displayCode = code;
+                        if(code > 3 && code < 45) displayCode = 3;
+                        if(code >= 51 && code <= 67) displayCode = 61;
+                        if(code >= 71 && code <= 86) displayCode = 71;
+                        weather.value = {
+                            temp: Math.round(data.current_weather.temperature),
+                            code: displayCode, desc: weatherCodeMap[displayCode]?.desc || '多雲'
+                        };
+                    }
+                } catch (e) { console.error("Weather error"); }
+            };
+
+            // Itinerary
+            const dates = [
+                { val: '12/18', day: '12/18', weekday: '週四' },
+                { val: '12/19', day: '12/19', weekday: '週五' },
+                { val: '12/20', day: '12/20', weekday: '週六' },
+                { val: '12/21', day: '12/21', weekday: '週日' }
+            ];
+            const selectedDate = ref('12/18');
+            const itineraryList = ref(JSON.parse(localStorage.getItem('trip_itinerary')) || []);
+            const showItineraryModal = ref(false);
+            const editingItineraryId = ref(null);
+            const modalItem = ref({ time: '', title: '', location: '', duration: 0 });
+            
+            const durationOptions = computed(() => {
+                let opts = [];
+                for(let i = 1; i <= 12; i++) {
+                    let val = i * 0.5;
+                    let label = val % 1 === 0 ? `${val} 小時` : `${Math.floor(val)}小時30分`;
+                    if(val < 1) label = '30 分鐘';
+                    opts.push({ val: val, label: label });
+                }
+                return opts;
+            });
+            const calcEndTime = (startTime, duration) => {
+                if(!duration || duration == 0) return null;
+                const [h, m] = startTime.split(':').map(Number);
+                const totalMin = h * 60 + m + (duration * 60);
+                const endH = Math.floor(totalMin / 60) % 24;
+                const endM = Math.floor(totalMin % 60);
+                return `${String(endH).padStart(2,'0')}:${String(endM).padStart(2,'0')}`;
+            };
+            const filteredItinerary = computed(() => {
+                return itineraryList.value
+                    .filter(i => i.date === selectedDate.value)
+                    .sort((a, b) => a.time.localeCompare(b.time));
+            });
+            const switchDate = (dateVal) => selectedDate.value = dateVal;
+            const openItineraryModal = (item) => {
+                if (item) { editingItineraryId.value = item.id; modalItem.value = { ...item }; }
+                else { editingItineraryId.value = null; modalItem.value = { time: '', title: '', location: '', duration: 0 }; }
+                showItineraryModal.value = true;
+            };
+            const closeItineraryModal = () => { showItineraryModal.value = false; editingItineraryId.value = null; };
+            const saveItineraryFromModal = () => {
+                if (!modalItem.value.time || !modalItem.value.title) return alert('請填寫時間與內容');
+                const endTimeStr = calcEndTime(modalItem.value.time, modalItem.value.duration);
+                if (editingItineraryId.value) {
+                    const index = itineraryList.value.findIndex(i => i.id === editingItineraryId.value);
+                    if (index !== -1) itineraryList.value[index] = { ...itineraryList.value[index], ...modalItem.value, endTime: endTimeStr };
+                } else {
+                    itineraryList.value.push({ id: Date.now(), date: selectedDate.value, ...modalItem.value, endTime: endTimeStr });
+                }
+                saveData(); closeItineraryModal();
+            };
+            const removeItineraryFromModal = () => {
+                if(confirm('確定刪除?')) { itineraryList.value = itineraryList.value.filter(i => i.id !== editingItineraryId.value); saveData(); closeItineraryModal(); }
+            };
+
+            // Packing
+            const packingList = ref(JSON.parse(localStorage.getItem('trip_packing')) || []);
+            const newPack = ref({ category: '', name: '' });
+            const draggingId = ref(null);
+            let dragTimer = null;
+            let lastSwapTime = 0;
+
+            const groupedPacking = computed(() => {
+                const groups = {};
+                packingList.value.forEach(item => {
+                    if (!groups[item.category]) groups[item.category] = [];
+                    groups[item.category].push(item);
+                });
+                return groups;
+            });
+            const packProgress = computed(() => {
+                if (packingList.value.length === 0) return 0;
+                const checked = packingList.value.filter(i => i.checked).length;
+                return Math.round((checked / packingList.value.length) * 100);
+            });
+            const addPackItem = () => {
+                if (!newPack.value.name) return;
+                const category = newPack.value.category || '其他';
+                packingList.value.push({ id: Date.now(), category: category, name: newPack.value.name, checked: false });
+                newPack.value.name = ''; saveData();
+            };
+            const togglePack = (item) => { 
+                if(!draggingId.value) { item.checked = !item.checked; saveData(); }
+            };
+            const removePack = (id) => { packingList.value = packingList.value.filter(i => i.id !== id); saveData(); };
+
+            // Drag Logic
+            const handleTouchStart = (e, item) => {
+                // Long press 500ms to start dragging
+                dragTimer = setTimeout(() => {
+                    draggingId.value = item.id;
+                    if(navigator.vibrate) navigator.vibrate(50);
+                }, 500);
+            };
+            const handleTouchMove = (e) => {
+                if(!draggingId.value) {
+                    clearTimeout(dragTimer); return;
+                }
+                e.preventDefault(); // Stop scrolling
+                
+                // Throttle
+                if (Date.now() - lastSwapTime < 100) return;
+
+                // Find element under finger
+                const touch = e.touches ? e.touches[0] : e;
+                const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                const targetRow = target?.closest('.pack-item');
+
+                if (targetRow) {
+                    const targetId = Number(targetRow.dataset.id);
+                    if (targetId && targetId !== draggingId.value) {
+                        const sourceIdx = packingList.value.findIndex(i => i.id === draggingId.value);
+                        const targetIdx = packingList.value.findIndex(i => i.id === targetId);
+                        
+                        // Swap within same category logic (optional restriction, here we allow swap if valid)
+                        if (sourceIdx > -1 && targetIdx > -1) {
+                            // Only swap if same category to avoid jumping sections visually
+                            if(packingList.value[sourceIdx].category === packingList.value[targetIdx].category){
+                                const temp = packingList.value[sourceIdx];
+                                packingList.value[sourceIdx] = packingList.value[targetIdx];
+                                packingList.value[targetIdx] = temp;
+                                lastSwapTime = Date.now();
+                                saveData();
+                            }
+                        }
+                    }
+                }
+            };
+            const handleTouchEnd = () => {
+                clearTimeout(dragTimer);
+                draggingId.value = null;
+            };
+
+            // Currency
+            const currentRate = ref(0.2150);
+            const lastRateUpdate = ref('--:--');
+            const calcJpy = ref('');
+            const calcTwd = ref(0);
+            const expenseLogs = ref(JSON.parse(localStorage.getItem('trip_expenses')) || []);
+            const expense = ref({ name: '', price: '', method: 'cash' });
+            const fetchRate = async () => {
+                try {
+                    const res = await fetch('https://api.exchangerate-api.com/v4/latest/JPY');
+                    const data = await res.json();
+                    if(data.rates && data.rates.TWD) {
+                        currentRate.value = data.rates.TWD;
+                        const now = new Date(); lastRateUpdate.value = `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+                    }
+                } catch (e) { console.log("Rate error"); }
+            };
+            const calculateTwd = () => {
+                if(!calcJpy.value) calcTwd.value = 0;
+                else calcTwd.value = Math.round(calcJpy.value * currentRate.value);
+            };
+            const saveExpense = () => {
+                if(!expense.value.name || !expense.value.price) return;
+                expenseLogs.value.unshift({
+                    id: Date.now(), name: expense.value.name, price: Number(expense.value.price),
+                    method: expense.value.method || 'cash', rate: currentRate.value, date: new Date().toLocaleDateString()
+                });
+                expense.value = { name: '', price: '', method: 'cash' }; saveData();
+            };
+            const removeExpense = (id) => { if(confirm('刪除?')) { expenseLogs.value = expenseLogs.value.filter(l => l.id !== id); saveData(); } };
+
+            // Memos
+            const memos = ref(JSON.parse(localStorage.getItem('trip_memos')) || []);
+            const showMemoModal = ref(false);
+            const editingMemoId = ref(null);
+            const modalMemo = ref({ text: '' });
+            const openMemoModal = (memo) => {
+                if(memo) { editingMemoId.value = memo.id; modalMemo.value = { text: memo.text }; }
+                else { editingMemoId.value = null; modalMemo.value = { text: '' }; }
+                showMemoModal.value = true;
+            };
+            const closeMemoModal = () => { showMemoModal.value = false; editingMemoId.value = null; };
+            const saveMemoFromModal = () => {
+                if(!modalMemo.value.text) return;
+                if(editingMemoId.value) {
+                    const idx = memos.value.findIndex(m => m.id === editingMemoId.value);
+                    if(idx !== -1) { memos.value[idx].text = modalMemo.value.text; memos.value[idx].date = new Date().toLocaleDateString(); }
+                } else {
+                    memos.value.unshift({ id: Date.now(), text: modalMemo.value.text, date: new Date().toLocaleDateString() });
+                }
+                saveData(); closeMemoModal();
+            };
+            const removeMemoFromModal = () => {
+                if(confirm('刪除紙條?')) { memos.value = memos.value.filter(m => m.id !== editingMemoId.value); saveData(); closeMemoModal(); }
+            };
+
+            const saveData = () => {
+                localStorage.setItem('trip_itinerary', JSON.stringify(itineraryList.value));
+                localStorage.setItem('trip_packing', JSON.stringify(packingList.value));
+                localStorage.setItem('trip_expenses', JSON.stringify(expenseLogs.value));
+                localStorage.setItem('trip_memos', JSON.stringify(memos.value));
+            };
+
+            onMounted(() => {
+                setInterval(updateTime, 1000); updateTime();
+                fetchWeather(); setInterval(fetchWeather, 1800000);
+                fetchRate(); setInterval(fetchRate, 1800000);
+            });
+
+            return {
+                currentTab, japanTime, weather, weatherIcon,
+                dates, selectedDate, filteredItinerary, switchDate,
+                showItineraryModal, openItineraryModal, closeItineraryModal, saveItineraryFromModal, removeItineraryFromModal,
+                modalItem, editingItineraryId, durationOptions,
+                groupedPacking, newPack, addPackItem, togglePack, removePack, packProgress,
+                handleTouchStart, handleTouchMove, handleTouchEnd, draggingId,
+                currentRate, lastRateUpdate, calcJpy, calcTwd, calculateTwd, expense, expenseLogs, saveExpense, removeExpense,
+                memos, openMemoModal, closeMemoModal, saveMemoFromModal, removeMemoFromModal, showMemoModal, editingMemoId, modalMemo
+            };
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>
