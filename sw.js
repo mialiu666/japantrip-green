@@ -1,4 +1,4 @@
-const CACHE_NAME = 'japan-trip-v2';
+const CACHE_NAME = 'japan-trip-v3';
 const urlsToCache = [
   './',
   './index.html',
@@ -13,7 +13,6 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Opened cache');
         return cache.addAll(urlsToCache);
       })
   );
